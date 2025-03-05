@@ -1,0 +1,99 @@
+#!/bin/bash
+
+TODO_FILE=~/todo.list
+
+print_header() {
+    echo "----------------------------"
+    echo "|       📋 To-Do List       |"
+    echo "----------------------------"
+}
+
+add_task() {
+    echo "🖊️ Add a new task..."
+    echo "Current Date: $(date '+%Y-%m-%d')"
+    echo "Enter your task description:"
+    read task_desc
+    echo "Enter deadline for task (YYYY-MM-DD HH:MM):"
+    read task_deadline
+    today=$(date +%Y-%m-%d)
+    echo "$task_desc 🗓️ $task_deadline 🕒 $today - added" >> $TODO_FILE
+    echo "Task added! 🌟"
+    echo "----------------------------"
+}
+
+list_tasks() {
+    if [ ! -f "$TODO_FILE" ]; then
+        print_header
+        echo -e "\e[33mNo tasks found. Your to-do list is empty! 🎉\e[0m"
+        echo "----------------------------"
+        return
+    fi
+
+    print_header
+    while IFS= read -r line
+    do
+        desc=$(echo $line | awk -F '🗓️' '{print $1}')
+        deadline=$(echo $line | awk -F '🗓️|🕒' '{print $2}')
+        added_date=$(echo $line | awk -F '🕒' '{print $2}' | awk -F ' - ' '{print $1}')
+        end_date=$(date -d "$deadline" +%s)
+        today=$(date +%s)
+        diff=$(( ($end_date - $today) / 86400 ))
+        hours_left=$(( ($end_date - $today) % 86400 / 3600 ))
+        minutes_left=$(( ($end_date - $today) % 3600 / 60 ))
+        
+        if [ $diff -lt 0 ]; then
+            status="\e[31m⏰ Expired $((-diff)) days ago\e[0m"
+        elif [ $diff -eq 0 ] && [ $hours_left -eq 0 ] && [ $minutes_left -le 60 ]; then
+            status="\e[31m⏰ Expires in $minutes_left minutes\e[0m"
+        elif [ $diff -eq 0 ]; then
+            status="\e[33m⏳ Expires in $hours_left hours and $minutes_left minutes\e[0m"
+        else
+            status="\e[32m⏳ $diff days and $hours_left hours remaining\e[0m"
+        fi
+        echo -e "🗓️  $deadline"
+        echo -e "$status"
+        echo -e "$desc"
+        echo "----------------------------"
+    done < $TODO_FILE
+}
+
+delete_task() {
+    if [ ! -f "$TODO_FILE" ]; then
+        echo -e "\e[33mNo tasks found to delete. Your to-do list is empty! 🎉\e[0m"
+        return
+    fi
+    
+    echo "🗑️ Select the task number you wish to delete:"
+    local i=1
+    local tasks=()
+    while IFS= read -r line; do
+        echo "$i) $line"
+        tasks+=("$line")
+        ((i++))
+    done < $TODO_FILE
+    
+    read -p "Enter number (or 'cancel' to exit): " num
+    if [[ $num =~ ^[0-9]+$ ]] && [ $num -ge 1 ] && [ $num -le ${#tasks[@]} ]; then
+        sed -i "${num}d" $TODO_FILE
+        echo "Task $num deleted. 🗑️"
+    elif [[ $num == "cancel" ]]; then
+        echo "Delete operation cancelled. 🚫"
+    else
+        echo "Invalid selection. Operation cancelled. 🚫"
+    fi
+}
+
+case "$1" in
+    add)
+        add_task
+        ;;
+    list)
+        list_tasks
+        ;;
+    delete)
+        delete_task
+        ;;
+    *)
+        echo "Usage: $0 {add|list|delete}"
+        ;;
+esac
